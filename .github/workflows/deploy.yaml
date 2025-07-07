@@ -1,0 +1,39 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: build bsky-repost-likes extension(s)
+        run: nix build -L git+https://tangled.sh/@poor.dog/bsky-repost-likes#extension
+      - name: rename bsky-repost-likes extension(s)
+        run: |
+          mkdir ext
+          cp result/*-chrome.zip ext/brl-ext-chrome-latest.zip
+          cp result/*-firefox.zip ext/brl-ext-firefox-latest.zip
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./ext
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
