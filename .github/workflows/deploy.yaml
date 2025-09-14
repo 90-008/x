@@ -46,7 +46,7 @@ jobs:
             - name: pack at-fronter (chrome)
               uses: cardinalby/webext-buildtools-pack-extension-dir-action@v1
               with:
-                  extensionDir: "extension"
+                  extensionDir: "at-fronter/.output/chrome-mv3"
                   zipFilePath: "at-fronter/.output/chrome-ext.zip"
             - name: sign at-fronter (chrome)
               uses: cardinalby/webext-buildtools-chrome-crx-action@v2
