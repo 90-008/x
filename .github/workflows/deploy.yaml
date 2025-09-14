@@ -1,42 +1,73 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * *'
+    push:
+        branches:
+            - main
+    workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+    contents: read
+    pages: write
+    id-token: write
 
 jobs:
-  deploy:
-    name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    steps:
-      - name: setup nix
-        uses: cachix/install-nix-action@v31
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: build bsky-repost-likes extension(s)
-        run: nix build -L git+https://tangled.sh/@poor.dog/bsky-repost-likes#extension
-      - name: rename bsky-repost-likes extension(s)
-        run: |
-          mkdir ext
-          cp result/*-chrome.zip ext/brl-ext-chrome-latest.zip
-          cp result/*-firefox.zip ext/brl-ext-firefox-latest.zip
+    deploy:
+        name: Deploy to GitHub Pages
+        runs-on: ubuntu-latest
+        steps:
+            - name: setup nix
+              uses: cachix/install-nix-action@v31
+              with:
+                  github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
+            # - name: build bsky-repost-likes extension(s)
+            #   run: nix build -L git+https://tangled.sh/@poor.dog/bsky-repost-likes#extension
+            # - name: rename bsky-repost-likes extension(s)
+            #   run: |
+            #     mkdir ext
+            #     cp result/*-chrome.zip ext/brl-ext-chrome-latest.zip
+            #     cp result/*-firefox.zip ext/brl-ext-firefox-latest.zip
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./ext
+            - name: clone at-fronter
+              run: git clone https://tangled.sh/@poor.dog/at-fronter --depth=1
+            - name: install at-fronter deps
+              uses: jjs98/pnpm-install-action@v6
+              with:
+                  directory: at-fronter
 
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+            - name: build at-fronter (firefox)
+              run: |
+                  pnpm run -C at-fronter build:firefox
+                  pnpx web-ext sign --channel unlisted -s at-fronter/.output/firefox-mv2 --api-key ${{ secrets.MOZILLA_API_KEY }} --api-secret ${{ secrets.MOZILLA_API_SECRET }}
+
+            - name: build at-fronter (chrome)
+              run: pnpm run -C at-fronter build
+            - name: pack at-fronter (chrome)
+              uses: cardinalby/webext-buildtools-pack-extension-dir-action@v1
+              with:
+                  extensionDir: "extension"
+                  zipFilePath: "at-fronter/.output/chrome-ext.zip"
+            - name: sign at-fronter (chrome)
+              uses: cardinalby/webext-buildtools-chrome-crx-action@v2
+              with:
+                  zipFilePath: "at-fronter/.output/chrome-ext.zip"
+                  crxFilePath: "at-fronter/.output/chrome-ext.crx"
+                  privateKey: ${{ secrets.CHROME_CRX_PRIVATE_KEY }}
+
+            - name: move extensions
+              run: |
+                  mkdir -p ext
+                  mv at-fronter/.output/chrome-ext.crx ext/at-fronter_chrome.crx
+                  mv web-ext-artifacts/*.xpi ext/at-fronter_firefox.xpi
+
+            - name: Setup GitHub Pages
+              uses: actions/configure-pages@v5
+
+            - name: Upload artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./ext
+
+            - name: Deploy to GitHub Pages
+              uses: actions/deploy-pages@v4
